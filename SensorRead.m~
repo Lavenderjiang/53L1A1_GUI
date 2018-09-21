@@ -19,7 +19,7 @@ right = 2;
 
 % Configurable parameter
 sensor = left;
-timeLimit = 30;
+timeLimit = 800;
 size = 300;
 
 % counting the number of loops, error receive, correct receive
@@ -40,7 +40,7 @@ timePassed = 0;
 
 % to find device for linux/mac: 1) cd /dev 2) ls 3)check tty/cu
 % Lavender's: second usb port from left
-s = serial('/dev/tty.usbmodem14123'); 
+s = serial('/dev/cu.usbmodem14123'); 
 set(s,'BaudRate',115200);
 set(s,'InputBufferSize',1024);
 set(s, 'Terminator', 'LF'); %terminator: line feed \n
@@ -147,35 +147,30 @@ while(timePassed < timeLimit)
 end
 
 %% Plot the recorded data
-figure('position', [300, 300, 2000, 300]);
-subplot(1,3,1);
+
 % left
 [timeLogs,tempLogs] = getpoints(h);
 timeSecs = (timeLogs-timeLogs(1))*24*3600;
-plot(timeSecs,tempLogs,'Color','b','LineWidth',3)
+figure
+plot(timeSecs,tempLogs)
 xlabel('Elapsed time (sec)')
 ylabel('Left Range (\circF)')
-title("left sensor")
 
 % center
-subplot(1,3,2);
-[timeLogs,tempLogs] = getpoints(h2);
+[timeLogs,tempLogs] = getpoints(h);
 timeSecs = (timeLogs-timeLogs(1))*24*3600;
-plot(timeSecs,tempLogs,'Color','r','LineWidth',3)
+figure
+plot(timeSecs,tempLogs)
 xlabel('Elapsed time (sec)')
-ylabel('Middle Range (\circF)')
-title("mid sensor")
-
+ylabel('RighRange (\circF)')
 
 %right
-subplot(1,3,3);
-[timeLogs,tempLogs] = getpoints(h3);
+[timeLogs,tempLogs] = getpoints(h);
 timeSecs = (timeLogs-timeLogs(1))*24*3600;
-plot(timeSecs,tempLogs,'Color','g','LineWidth',3)
+figure
+plot(timeSecs,tempLogs)
 xlabel('Elapsed time (sec)')
-ylabel('Right Range (\circF)')
-title("right sensor")
-
+ylabel('Range (\circF)')
 
 %% Exit Block
 fclose(s);
