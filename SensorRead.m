@@ -12,29 +12,59 @@ close all; % Close plot windows
 
 %% Prepare to Run
 
+% Configurable parameter
+timeLimit = 20;
+writefile = true;
+size = 3; %init vector size
+
 % Global Variables
 left = 0;
 mid = 1;
 right = 2;
-
-% Configurable parameter
-sensor = left;
-timeLimit = 30;
-size = 300;
-
-% counting the number of loops, error receive, correct receive
-counter_data_right = 0;
-counter_data_error = 0;
-
-% saving the output
-center_data = zeros(1,size);
-left_data = zeros(1,size);
-right_data = zeros(1,size);
-
-% 3*size 2D array
-sensor_data = [left_data, center_data, right_data];
-
 timePassed = 0;
+rate_scale_factor = 65536.0;
+error_counts = 0;
+
+% Plot Init
+%initialize plot components
+range_mm = zeros(1,size);
+t = zeros(1,size); %tmp x axis
+% Plot range versus time
+
+%uncomment to make figure full screen
+%figure('units','normalized','outerposition',[0 0 1 1])
+%figure [bottom, left, width, height]
+figure('position', [800, 800, 2000, 300]);
+xlabel('Elapsed time (sec)')
+ylabel('Range (mm)')
+title('Proximity Sensor Output')
+set(gca,'xlim',[1 size])
+
+%left init
+subplot(1,3,1);
+title("left");
+h = animatedline(t,range_mm,'Color','b','LineWidth',3);
+ax = gca;
+ax.YGrid = 'on';
+hold on
+
+%mid init
+subplot(1,3,2);
+title("mid");
+h2 = animatedline(t,range_mm,'Color','r','LineWidth',3);
+ax1 = gca;
+ax1.YGrid = 'on';
+hold on
+
+%right init
+subplot(1,3,3);
+title("right");
+h3 = animatedline(t,range_mm,'Color','g','LineWidth',3);
+ax3 = gca;
+ax3.YGrid = 'on';
+% read start time
+startTime = datetime('now');
+%ax.YLim = [65 85];
 
 %% Serial Config
 
@@ -51,43 +81,6 @@ fopen(s);
 
 %% Main Block
 
-%initialize plot components
-range_mm = zeros(1,size);
-t = zeros(1,size); %tmp x axis
-% Plot range versus time
-
-%uncomment to make figure full screen
-%figure('units','normalized','outerposition',[0 0 1 1])
-%figure %normal size figure
-figure('position', [300, 300, 2000, 300]);
-%plot(t,range_mm,'-o')
-xlabel('Elapsed time (sec)')
-ylabel('Range (mm)')
-title('Proximity Sensor Output')
-set(gca,'xlim',[1 size])
-
-subplot(1,3,1);
-h = animatedline(t,range_mm,'Color','b','LineWidth',3);
-ax = gca;
-ax.YGrid = 'on';
-
-hold on
-subplot(1,3,2);
-h2 = animatedline(t,range_mm,'Color','r','LineWidth',3);
-ax1 = gca;
-ax1.YGrid = 'on';
-
-
-hold on
-subplot(1,3,3);
-h3 = animatedline(t,range_mm,'Color','g','LineWidth',3);
-ax3 = gca;
-ax3.YGrid = 'on';
-% read start time
-startTime = datetime('now');
-%ax.YLim = [65 85];
-%startTime = datetime('now');
-
 % Main Loop
 while(timePassed < timeLimit)
   
@@ -97,49 +90,49 @@ while(timePassed < timeLimit)
     % read serial for ASCII
     serial_out = fgetl(s);
     readings = strsplit(serial_out,","); % should get 5 readings
-    % data format: sensor indicator, range status, range mm, signal rate,
-    % ambient rate
+    % data format: 
+    % (1) sensor indicator
+    % (2) range status
+    % (3) range mm
+    % (4) signal rate
+    % (5) ambient rate
     
-    %%Trying to plot range mm
-    %if data from desired sensor received, draw; otherwise don't add points
     if (length(readings) == 5) 
-        r = readings(3);
-        r_num = str2double(r);
+        %range_reading = readings(3);
+        range_status = readNum(readings,2);
+        
+        signal_rate = readNum(readings,4)*rate_scale_factor; %in Mcps
+        ambient_rate = readNum(readings,5)*rate_scale_factor; %in Mcps
+        range_number_mm = readNum(readings,3);
+        range_number_cm = range_number_mm/10;
         sensorIndex = str2double(readings(1));
-        % r = readings(3); %3rd entry in current thing
-        % disp("reading is"); disp(readings);
-        % disp("r is "); disp(r);
+        if (range_status ~= 0)
+            % disp("error reading!"); disp(range_status); disp(sensorIndex);
+            error_counts = error_counts + 1;
+        end
          
         if (sensorIndex == left)
             % Add points to animation
-            addpoints(h,datenum(t),r_num);
+            addpoints(h,datenum(t),range_number_cm);
             % Update axes
             ax.XLim = datenum([t-seconds(15) t]);
             datetick('x','keeplimits');
             drawnow
-            title("left");
-            %hold on
         end
         
         if (sensorIndex == mid)
-            addpoints(h2,datenum(t),r_num);
+            addpoints(h2,datenum(t),range_number_cm);
             ax1.XLim = datenum([t-seconds(15) t]);
             datetick('x','keeplimits');
             drawnow
         end 
-        %hold on
         
         if (sensorIndex == right)
-            addpoints(h3,datenum(t),r_num);
+            addpoints(h3,datenum(t),range_number_cm);
             ax3.XLim = datenum([t-seconds(15) t]);
             datetick('x','keeplimits');
             drawnow
-        end 
-        
-        counter_data_right = counter_data_right + 1;
-    else
-        counter_data_error = counter_data_error + 1;
-   
+        end      
     end
        
     %pause(0.1);
@@ -147,35 +140,48 @@ while(timePassed < timeLimit)
 end
 
 %% Plot the recorded data
-figure('position', [300, 300, 2000, 300]);
+figure('position', [800, 800, 2000, 300]);
 subplot(1,3,1);
 % left
-[timeLogs,tempLogs] = getpoints(h);
-timeSecs = (timeLogs-timeLogs(1))*24*3600;
-plot(timeSecs,tempLogs,'Color','b','LineWidth',3)
+[timeLogs1,tempLogs1] = getpoints(h);
+timeSecs1 = (timeLogs1-timeLogs1(1))*24*3600;
+plot(timeSecs1,tempLogs1,'Color','b','LineWidth',3)
 xlabel('Elapsed time (sec)')
-ylabel('Left Range (\circF)')
+ylabel('Left Range (cm)')
 title("left sensor")
 
 % center
 subplot(1,3,2);
-[timeLogs,tempLogs] = getpoints(h2);
-timeSecs = (timeLogs-timeLogs(1))*24*3600;
-plot(timeSecs,tempLogs,'Color','r','LineWidth',3)
+[timeLogs2,tempLogs2] = getpoints(h2);
+timeSecs2 = (timeLogs2-timeLogs2(1))*24*3600;
+plot(timeSecs2,tempLogs2,'Color','r','LineWidth',3)
 xlabel('Elapsed time (sec)')
-ylabel('Middle Range (\circF)')
+ylabel('Middle Range (cm)')
 title("mid sensor")
-
 
 %right
 subplot(1,3,3);
-[timeLogs,tempLogs] = getpoints(h3);
-timeSecs = (timeLogs-timeLogs(1))*24*3600;
-plot(timeSecs,tempLogs,'Color','g','LineWidth',3)
+[timeLogs3,tempLogs3] = getpoints(h3);
+timeSecs3 = (timeLogs3-timeLogs3(1))*24*3600;
+plot(timeSecs3,tempLogs3,'Color','g','LineWidth',3)
 xlabel('Elapsed time (sec)')
-ylabel('Right Range (\circF)')
+ylabel('Right Range (cm)')
 title("right sensor")
 
+
+%% Save results to a file
+if writefile == true
+    % to fix: zero entries in xlsw file
+    T = table(timeSecs1',tempLogs1','VariableNames',{'Time_sec','Range_cm'});
+    filename = 'Left_Range_Data.xlsx';
+    % Write table to file 
+    writetable(T,filename)
+    % Print confirmation to command line
+    fprintf('Results table with %g range measurements saved to file %s\n',...
+        length(timeSecs1)-size,filename)
+    %fprintf('%d errors in total. Results table with %g range measurements saved to file %s\n',...
+        %error_counts,length(timeSecs1)-size,filename)
+end
 
 %% Exit Block
 fclose(s);
